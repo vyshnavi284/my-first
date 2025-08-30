@@ -1,0 +1,85 @@
+import streamlit as st
+from ibm_watson import TextToSpeechV1
+from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+import tempfile
+import base64
+# Placeholder for IBM Watsonx Granite LLM rewriting function
+def rewrite_text_with_tone(text, tone):
+    """
+    Simulate tone-adaptive rewriting using IBM Watsonx Granite LLM.
+    Replace this with actual API calls to IBM Watsonx Granite LLM.
+    """
+    # For demonstration, just append tone info and pretend it's rewritten
+    tone_templates = {
+        "Neutral": text,
+        "Suspenseful": f"In a suspenseful tone: {text}",
+        "Inspiring": f"With inspiring words: {text}"
+    }
+    return tone_templates.get(tone, text)
+# IBM Watson Text-to-Speech setup
+def init_tts(api_key, url):
+    authenticator = IAMAuthenticator(api_key)
+    tts = TextToSpeechV1(authenticator=authenticator)
+    tts.set_service_url(url)
+    return tts
+def synthesize_speech(tts, text, voice="en-US_AllisonV3Voice"):
+    """
+    Synthesize speech from text using IBM Watson TTS.
+    Returns audio bytes in mp3 format
+    """
+    response = tts.synthesize(
+        text,
+        voice=voice,
+        accept='audio/mp3'
+    ).get_result()
+    return response.content
+def get_audio_download_link(audio_bytes, filename="output.mp3"):
+    """
+    Generates a link to download audio bytes as an mp3 file.
+    """
+    b64 = base64.b64encode(audio_bytes).decode()
+    href = f'<a href="data:audio/mp3;base64,{b64}" download="{filename}">Download Audio</a>'
+    return href
+# streamlit UI
+st.title("EchoVerse – AI-Powered Audiobook Creation Tool")
+# Input text
+input_method = st.radio("Input Method", ["Paste Text", "Upload .txt File"])
+if input_method == "Paste Text":
+    user_text = st.text_area("Enter your text here", height=200)
+else:
+    uploaded_file = st.file_uploader("Upload a .txt file", type=["txt"])
+    if uploaded_file is not None:
+        user_text = uploaded_file.read().decode("utf-8")
+    else:
+        user_text = ""
+if user_text.strip():
+    st.subheader("Original Text")
+    st.write(user_text)
+    # Tone selection
+    tone = st.selectbox("Select Tone", ["Neutral", "Suspenseful", "Inspiring"])
+    # Rewrite text with tone
+    if st.button("Rewrite Text"):
+        with st.spinner("Rewriting text with selected tone..."):
+            rewritten_text = rewrite_text_with_tone(user_text, tone)
+        st.subheader("Tone-Adapted Text")
+        st.write(rewritten_text)
+        # Voice selection
+        voice = st.selectbox("Select Voice", ["Lisa (en-US_LisaV3Voice)", "Michael (en-US_MichaelV3Voice)", "Allison (en-US_AllisonV3Voice)"])
+        voice_map = {
+            "Lisa (en-US_LisaV3Voice)": "en-US_LisaV3Voice",
+            "Michael (en-US_MichaelV3Voice)": "en-US_MichaelV3Voice",
+            "Allison (en-US_AllisonV3Voice)": "en-US_AllisonV3Voice"
+        }
+        selected_voice = voice_map[voice]
+        # IBM Watson TTS credentials (replace with your own)
+        IBM_TTS_API_KEY = st.secrets["IBM_TTS_API_KEY"]
+        IBM_TTS_URL = st.secrets["IBM_TTS_URL"]
+        tts = init_tts(IBM_TTS_API_KEY, IBM_TTS_URL)
+        if st.button("Generate Audio"):
+            with st.spinner("Generating audio..."):
+                audio_bytes = synthesize_speech(tts, rewritten_text, voice=selected_voice)
+            st.audio(audio_bytes, format="audio/mp3")
+            st.markdown(get_audio_download_link(audio_bytes), unsafe_allow_html=True)
+else:
+    st.info("Please enter or upload text to begin.")
+
